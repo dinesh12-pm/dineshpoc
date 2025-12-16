@@ -1,73 +1,84 @@
 const express = require('express');
 const { Pool } = require('pg');
-const cors = require('cors');
+
 
 const app = express();
+const JWT_SECRET = 'ems_secret_key';
 
-/* CORS */
-app.use(cors({
-  origin: '*',
-  methods: ['GET', 'POST', 'PUT', 'DELETE']
-}));
 
+app.use(cors({ origin: '*', methods: ['GET','POST','DELETE'] }));
 app.use(express.json());
 
-/* PostgreSQL connection */
+
 const pool = new Pool({
-  host: 'postgres',
-  user: 'admin',
-  password: 'admin123',
-  database: 'employees',
-  port: 5432
+host: 'postgres',
+user: 'admin',
+password: 'admin123',
+database: 'employees',
+port: 5432
 });
 
-/* Health check */
-app.get('/health', (req, res) => res.send('OK'));
 
-/* Get employees */
-app.get('/employees', async (req, res) => {
-  const { rows } = await pool.query(
-    'SELECT * FROM employee ORDER BY id'
-  );
-  res.json(rows);
+// ---------------- AUTH ----------------
+app.post('/login', async (req, res) => {
+const { username, password } = req.body;
+const result = await pool.query('SELECT * FROM users WHERE username=$1',[username]);
+if (!result.rows.length) return res.status(401).json({error:'Invalid user'});
+
+
+const user = result.rows[0];
+const valid = await bcrypt.compare(password, user.password);
+if (!valid) return res.status(401).json({error:'Invalid password'});
+
+
+const token = jwt.sign({ id: user.id, role: user.role }, JWT_SECRET, { expiresIn:'1h' });
+res.json({ token, role: user.role });
 });
 
-/* Add employee */
-app.post('/employees', async (req, res) => {
-  const { name, department, role, photo_url } = req.body;
 
-  await pool.query(
-    `INSERT INTO employee(name, department, role, photo_url)
-     VALUES ($1,$2,$3,$4)`,
-    [name, department, role, photo_url]
-  );
+const auth = (roles=[]) => (req,res,next)=>{
+const token = req.headers.authorization?.split(' ')[1];
+if (!token) return res.sendStatus(401);
+try {
+const decoded = jwt.verify(token, JWT_SECRET);
+if (roles.length && !roles.includes(decoded.role)) return res.sendStatus(403);
+req.user = decoded;
+next();
+} catch { return res.sendStatus(401); }
+};
 
-  res.status(201).json({ message: 'Employee added' });
+
+// ---------------- EMPLOYEES ----------------
+app.get('/employees', auth(['ADMIN','USER']), async (req,res)=>{
+const r = await pool.query('SELECT * FROM employee ORDER BY id');
+res.json(r.rows);
 });
 
-/* Update employee */
-app.put('/employees/:id', async (req, res) => {
-  const { id } = req.params;
-  const { name, department, role, status } = req.body;
 
-  await pool.query(
-    `UPDATE employee
-     SET name=$1, department=$2, role=$3, status=$4
-     WHERE id=$5`,
-    [name, department, role, status, id]
-  );
-
-  res.json({ message: 'Employee updated' });
+app.post('/employees', auth(['ADMIN']), async (req,res)=>{
+const { name, department, role, photo } = req.body;
+await pool.query(
+'INSERT INTO employee(name,department,role,photo) VALUES($1,$2,$3,$4)',
+[name,department,role,photo]
+);
+await pool.query('INSERT INTO audit_logs(action) VALUES($1)',[`Added ${name}`]);
+res.sendStatus(201);
 });
 
-/* Delete employee */
-app.delete('/employees/:id', async (req, res) => {
-  await pool.query('DELETE FROM employee WHERE id=$1', [req.params.id]);
-  res.json({ message: 'Employee deleted' });
+
+app.delete('/employees/:id', auth(['ADMIN']), async (req,res)=>{
+await pool.query('DELETE FROM employee WHERE id=$1',[req.params.id]);
+await pool.query('INSERT INTO audit_logs(action) VALUES($1)',[`Deleted employee ${req.params.id}`]);
+res.sendStatus(200);
 });
 
-/* Start */
-app.listen(3000, '0.0.0.0', () => {
-  console.log('Backend running on port 3000');
+
+// ---------------- ANALYTICS ----------------
+app.get('/analytics', auth(['ADMIN']), async (req,res)=>{
+const emp = await pool.query('SELECT COUNT(*) FROM employee');
+const dept = await pool.query('SELECT COUNT(DISTINCT department) FROM employee');
+res.json({ totalEmployees: emp.rows[0].count, departments: dept.rows[0].count });
 });
 
+
+app.listen(3000,'0.0.0.0',()=>console.log('Backend running on 3000'));
