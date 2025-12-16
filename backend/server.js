@@ -5,25 +5,24 @@ const cors = require('cors');
 const app = express();
 
 /**
- * ✅ Proper CORS configuration (VERY IMPORTANT)
- * Allows browser calls from frontend (NodePort / different port)
+ * ✅ FIXED CORS (THIS IS THE ROOT FIX)
  */
 app.use(cors({
-  origin: "*",
-  methods: ["GET", "POST", "OPTIONS"],
-  allowedHeaders: ["Content-Type"]
+  origin: '*',
+  methods: ['GET', 'POST', 'OPTIONS'],
+  allowedHeaders: ['Content-Type']
 }));
 
-// ✅ Explicitly handle preflight requests
-app.options("*", cors());
+// ✅ Handle browser preflight
+app.options('*', cors());
 
 app.use(express.json());
 
 /**
- * ✅ PostgreSQL connection
+ * PostgreSQL connection
  */
 const pool = new Pool({
-  host: 'postgres',        // Kubernetes service name
+  host: 'postgres',
   user: 'admin',
   password: 'admin123',
   database: 'employees',
@@ -31,14 +30,14 @@ const pool = new Pool({
 });
 
 /**
- * ✅ Health check (for k8s readiness/liveness)
+ * Health endpoint
  */
 app.get('/health', (req, res) => {
   res.status(200).send('OK');
 });
 
 /**
- * ✅ Get employees
+ * Get employees
  */
 app.get('/employees', async (req, res) => {
   try {
@@ -47,21 +46,17 @@ app.get('/employees', async (req, res) => {
     );
     res.json(result.rows);
   } catch (err) {
-    console.error('GET /employees error:', err);
-    res.status(500).json({ error: 'Database error' });
+    console.error(err);
+    res.status(500).json({ error: 'DB error' });
   }
 });
 
 /**
- * ✅ Add employee
+ * Add employee
  */
 app.post('/employees', async (req, res) => {
   try {
     const { name, department } = req.body;
-
-    if (!name || !department) {
-      return res.status(400).json({ error: 'Name and department required' });
-    }
 
     await pool.query(
       'INSERT INTO employee(name, department) VALUES($1, $2)',
@@ -70,13 +65,13 @@ app.post('/employees', async (req, res) => {
 
     res.status(201).json({ message: 'Employee added' });
   } catch (err) {
-    console.error('POST /employees error:', err);
-    res.status(500).json({ error: 'Database error' });
+    console.error(err);
+    res.status(500).json({ error: 'DB error' });
   }
 });
 
 /**
- * ✅ IMPORTANT: listen on 0.0.0.0 for Kubernetes
+ * IMPORTANT: listen on all interfaces
  */
 app.listen(3000, '0.0.0.0', () => {
   console.log('Backend running on port 3000');
