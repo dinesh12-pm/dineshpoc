@@ -6,13 +6,13 @@ function App() {
   const [dept, setDept] = useState("");
 
   const loadEmployees = async () => {
-    const res = await fetch("http://backend-service:3000/employees");
+    const res = await fetch("http://51.20.141.140:30001/employees");
     const data = await res.json();
     setEmployees(data);
   };
 
   const addEmployee = async () => {
-    await fetch("http://backend-service:3000/employees", {
+    await fetch("http://51.20.141.140:30001/employees", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name, department: dept })
