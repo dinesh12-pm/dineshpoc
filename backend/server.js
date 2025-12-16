@@ -4,23 +4,15 @@ const cors = require('cors');
 
 const app = express();
 
-/**
- * ✅ Proper CORS for browser + NodePort
- */
+/* CORS */
 app.use(cors({
   origin: '*',
-  methods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type']
+  methods: ['GET', 'POST', 'PUT', 'DELETE']
 }));
-
-// Handle preflight
-app.options('*', cors());
 
 app.use(express.json());
 
-/**
- * ✅ PostgreSQL connection (Kubernetes service name)
- */
+/* PostgreSQL connection */
 const pool = new Pool({
   host: 'postgres',
   user: 'admin',
@@ -29,73 +21,52 @@ const pool = new Pool({
   port: 5432
 });
 
-/**
- * ✅ Health check (K8s readiness/liveness)
- */
-app.get('/health', (req, res) => {
-  res.status(200).send('OK');
-});
+/* Health check */
+app.get('/health', (req, res) => res.send('OK'));
 
-/**
- * ✅ Get all employees
- */
+/* Get employees */
 app.get('/employees', async (req, res) => {
-  try {
-    const result = await pool.query(
-      'SELECT * FROM employee ORDER BY id'
-    );
-    res.json(result.rows);
-  } catch (err) {
-    console.error('GET /employees error:', err);
-    res.status(500).json({ error: 'Database error' });
-  }
+  const { rows } = await pool.query(
+    'SELECT * FROM employee ORDER BY id'
+  );
+  res.json(rows);
 });
 
-/**
- * ✅ Add new employee
- */
+/* Add employee */
 app.post('/employees', async (req, res) => {
-  try {
-    const { name, department } = req.body;
+  const { name, department, role, photo_url } = req.body;
 
-    if (!name || !department) {
-      return res.status(400).json({ error: 'Name and department are required' });
-    }
+  await pool.query(
+    `INSERT INTO employee(name, department, role, photo_url)
+     VALUES ($1,$2,$3,$4)`,
+    [name, department, role, photo_url]
+  );
 
-    await pool.query(
-      'INSERT INTO employee(name, department) VALUES($1, $2)',
-      [name, department]
-    );
-
-    res.status(201).json({ message: 'Employee added successfully' });
-  } catch (err) {
-    console.error('POST /employees error:', err);
-    res.status(500).json({ error: 'Database error' });
-  }
+  res.status(201).json({ message: 'Employee added' });
 });
 
-/**
- * ✅ Delete employee (NEW – for advanced UI)
- */
+/* Update employee */
+app.put('/employees/:id', async (req, res) => {
+  const { id } = req.params;
+  const { name, department, role, status } = req.body;
+
+  await pool.query(
+    `UPDATE employee
+     SET name=$1, department=$2, role=$3, status=$4
+     WHERE id=$5`,
+    [name, department, role, status, id]
+  );
+
+  res.json({ message: 'Employee updated' });
+});
+
+/* Delete employee */
 app.delete('/employees/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    await pool.query(
-      'DELETE FROM employee WHERE id = $1',
-      [id]
-    );
-
-    res.json({ message: 'Employee deleted successfully' });
-  } catch (err) {
-    console.error('DELETE /employees error:', err);
-    res.status(500).json({ error: 'Database error' });
-  }
+  await pool.query('DELETE FROM employee WHERE id=$1', [req.params.id]);
+  res.json({ message: 'Employee deleted' });
 });
 
-/**
- * ✅ Start server
- */
+/* Start */
 app.listen(3000, '0.0.0.0', () => {
   console.log('Backend running on port 3000');
 });

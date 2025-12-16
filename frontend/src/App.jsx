@@ -1,134 +1,85 @@
 import { useEffect, useState } from "react";
 import "./App.css";
 
-const API_URL = "http://51.20.141.140:30001";
+const API = "http://51.20.141.140:30001";
 
-function App() {
+export default function App() {
   const [employees, setEmployees] = useState([]);
-  const [name, setName] = useState("");
-  const [department, setDepartment] = useState("");
-  const [search, setSearch] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [form, setForm] = useState({
+    name: "",
+    department: "",
+    role: "",
+    photo_url: ""
+  });
 
-  const loadEmployees = async () => {
-    setLoading(true);
-    const res = await fetch(`${API_URL}/employees`);
-    const data = await res.json();
-    setEmployees(data);
-    setLoading(false);
+  const load = async () => {
+    const r = await fetch(`${API}/employees`);
+    setEmployees(await r.json());
   };
 
-  const addEmployee = async () => {
-    if (!name || !department) {
-      alert("Please fill all fields");
+  const add = async () => {
+    if (!form.name || !form.department) {
+      alert("Name & Department required");
       return;
     }
 
-    await fetch(`${API_URL}/employees`, {
+    await fetch(`${API}/employees`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, department })
+      body: JSON.stringify(form)
     });
 
-    setName("");
-    setDepartment("");
-    loadEmployees();
+    setForm({ name: "", department: "", role: "", photo_url: "" });
+    load();
   };
 
-  const deleteEmployee = async (id) => {
-    if (!window.confirm("Are you sure you want to delete this employee?")) return;
-    await fetch(`${API_URL}/employees/${id}`, { method: "DELETE" });
-    loadEmployees();
+  const del = async (id) => {
+    if (!window.confirm("Delete employee?")) return;
+    await fetch(`${API}/employees/${id}`, { method: "DELETE" });
+    load();
   };
 
-  useEffect(() => {
-    loadEmployees();
-  }, []);
-
-  const filtered = employees.filter(e =>
-    e.name.toLowerCase().includes(search.toLowerCase()) ||
-    e.department.toLowerCase().includes(search.toLowerCase())
-  );
-
-  const departmentsCount = new Set(
-    employees.map(e => e.department)
-  ).size;
+  useEffect(() => { load(); }, []);
 
   return (
     <div className="app">
-      <header className="topbar">
-        <h1>Employee Management Dashboard</h1>
-        <span className="env">PROD</span>
-      </header>
-
-      <div className="stats">
-        <div className="card blue">
-          Total Employees <span>{employees.length}</span>
-        </div>
-        <div className="card green">
-          Departments <span>{departmentsCount}</span>
-        </div>
-      </div>
+      <h1>Employee Management System</h1>
 
       <div className="form">
-        <input
-          placeholder="Employee Name"
-          value={name}
-          onChange={e => setName(e.target.value)}
-        />
-        <input
-          placeholder="Department"
-          value={department}
-          onChange={e => setDepartment(e.target.value)}
-        />
-        <button onClick={addEmployee}>➕ Add Employee</button>
+        <input placeholder="Name"
+          value={form.name}
+          onChange={e => setForm({ ...form, name: e.target.value })} />
+
+        <input placeholder="Department"
+          value={form.department}
+          onChange={e => setForm({ ...form, department: e.target.value })} />
+
+        <input placeholder="Role"
+          value={form.role}
+          onChange={e => setForm({ ...form, role: e.target.value })} />
+
+        <input placeholder="Photo URL"
+          value={form.photo_url}
+          onChange={e => setForm({ ...form, photo_url: e.target.value })} />
+
+        <button onClick={add}>Add Employee</button>
       </div>
 
-      <input
-        className="search"
-        placeholder="Search employee..."
-        value={search}
-        onChange={e => setSearch(e.target.value)}
-      />
-
-      {loading ? (
-        <p className="loading">Loading employees...</p>
-      ) : (
-        <table>
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Name</th>
-              <th>Department</th>
-              <th>Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.map(e => (
-              <tr key={e.id}>
-                <td>{e.id}</td>
-                <td>{e.name}</td>
-                <td>{e.department}</td>
-                <td>
-                  <button
-                    className="delete"
-                    onClick={() => deleteEmployee(e.id)}
-                  >
-                    🗑 Delete
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
-
-      {!loading && employees.length === 0 && (
-        <p className="empty">No employees found</p>
-      )}
+      <div className="grid">
+        {employees.map(e => (
+          <div className="card" key={e.id}>
+            <img src={e.photo_url || "https://i.pravatar.cc/150"} />
+            <h3>{e.name}</h3>
+            <p>{e.role || "Employee"}</p>
+            <span className="dept">{e.department}</span>
+            <span className={`status ${e.status?.toLowerCase()}`}>
+              {e.status}
+            </span>
+            <button onClick={() => del(e.id)}>Delete</button>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
-
-export default App;
 
