@@ -1,6 +1,4 @@
 import { useEffect, useState } from "react";
-const [employees, setEmployees] = useState([]);
-const [name, setName] = useState("");
 const [department, setDepartment] = useState("");
 const [role, setRole] = useState("");
 const [photo, setPhoto] = useState("");
