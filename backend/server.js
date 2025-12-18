@@ -1,86 +1,44 @@
 const express = require('express');
+const cors = require('cors');
 const { Pool } = require('pg');
-const cors = require('cors');   // ✅ THIS WAS MISSING
+
 
 const app = express();
-
-/**
- * ✅ Proper CORS configuration
- */
-app.use(cors({
-  origin: '*',
-  methods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
-}));
-
-app.options('*', cors());
+app.use(cors());
 app.use(express.json());
 
-/**
- * ✅ PostgreSQL connection (K8s service name)
- */
+
 const pool = new Pool({
-  host: 'postgres',
-  user: 'admin',
-  password: 'admin123',
-  database: 'employees',
-  port: 5432
+host: 'postgres',
+user: 'admin',
+password: 'admin123',
+database: 'employees'
 });
 
-/**
- * ✅ Health check
- */
-app.get('/health', (req, res) => {
-  res.status(200).send('OK');
+
+app.get('/health', (_, res) => res.send('OK'));
+
+
+app.get('/employees', async (_, res) => {
+const { rows } = await pool.query('SELECT * FROM employee ORDER BY id');
+res.json(rows);
 });
 
-/**
- * ✅ Get employees
- */
-app.get('/employees', async (req, res) => {
-  try {
-    const result = await pool.query('SELECT * FROM employee ORDER BY id');
-    res.json(result.rows);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'DB error' });
-  }
-});
 
-/**
- * ✅ Add employee
- */
 app.post('/employees', async (req, res) => {
-  try {
-    const { name, department } = req.body;
-    await pool.query(
-      'INSERT INTO employee(name, department) VALUES($1,$2)',
-      [name, department]
-    );
-    res.status(201).json({ message: 'Employee added' });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'DB error' });
-  }
+const { name, department, role, photo } = req.body;
+await pool.query(
+'INSERT INTO employee(name, department, role, photo) VALUES($1,$2,$3,$4)',
+[name, department, role, photo]
+);
+res.status(201).json({ message: 'Employee added' });
 });
 
-/**
- * ✅ Delete employee
- */
+
 app.delete('/employees/:id', async (req, res) => {
-  try {
-    await pool.query('DELETE FROM employee WHERE id=$1', [req.params.id]);
-    res.json({ message: 'Employee deleted' });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'DB error' });
-  }
+await pool.query('DELETE FROM employee WHERE id=$1', [req.params.id]);
+res.json({ message: 'Employee deleted' });
 });
 
-/**
- * ✅ Start server
- */
-app.listen(3000, '0.0.0.0', () => {
-  console.log('Backend running on port 3000');
-});
 
+app.listen(3000, '0.0.0.0', () => console.log('Backend running'));
